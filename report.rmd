@@ -4,6 +4,7 @@ Plot leap-frog steps with associated temperatures:
 
 ```{r}
 library(tidyverse)
+library(mvtnorm)
 path <- read.csv("./sim_output/path1.csv")
 path %>%
     ggplot(aes(x = x, y = y, color = temp)) +
@@ -59,7 +60,7 @@ samples %>%
 ts.plot(samples$x)
 ```
 
-Note that the particle moves much more freely between the two modes in the second settings. (Maximum temperature ~ 7.1)
+Note that the particle moves much more freely between the two modes in the second settings. (Maximum temperature ~ 50)
 
 ### Target raised to a temperature
 
@@ -84,6 +85,24 @@ params <- list("means" = means, "covs" = covs,
 
 path <- read.csv("./sim_output/path_temp_16.csv")
 path %>% ggplot(aes(x = x, y = y, color = temp)) + geom_path()
+```
+
+Changing the mass matrix to diag(c(3, 3)): not much better
+My guess is that as the distribution gets flatter, 
+its gradient reduces in magnitude across the board and limit the movement range of the particle. 
+
+Perhaps increasing the step_size would help ? But if that is the case then shouldn't tempered transitioning be used ?
+
+```{r}
+samples <- read.csv("./sim_output/distant_modes_temps.csv")
+samples %>%
+    ggplot(aes(x = x, y = y, alpha = 0.3)) + geom_bin2d() + facet_wrap(~temp)
+```
+
+Increasing the step_size:
+
+```{r}
+
 ```
 
 ### HMC within Gibbs framework
