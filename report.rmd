@@ -1,0 +1,110 @@
+### Heated path
+
+Plot leap-frog steps with associated temperatures:
+
+```{r}
+library(tidyverse)
+path <- read.csv("./sim_output/path1.csv")
+path %>%
+    ggplot(aes(x = x, y = y, color = temp)) +
+    ggtitle("x = (-0.4, -0.9), p = (0.7, -0.9), L = 200, alpha = 1.04, epsilon = 0.3") +
+    geom_path() + scale_color_gradient(low = "blue", high = "red")
+
+
+path <- read.csv("./sim_output/path2.csv")
+path %>%
+    ggplot(aes(x = x, y = y, color = temp)) +
+    ggtitle("x = (0.1, 1), p = (0.5, 0.8), L = 200, alpha = 1.04, epsilon = 0.3") +
+    geom_path() + scale_color_gradient(low = "blue", high = "red")
+
+path <- read.csv("./sim_output/path3.csv")
+path %>%
+    ggplot(aes(x = x, y = y, color = temp)) +
+    ggtitle("Diverges because of NAN") +
+    geom_path() + scale_color_gradient(low = "blue", high = "red")
+```
+
+Turns out when the temperature gets too high, (q) may wander to coordinates with very low density, making the gradient NaN (as f(x) goes to 0)
+There are two ways to handle this: 
+
+    1. Take the next sample to be the current one (as the new proposal is unlikely to be accepted anyway)
+    2. Change the functions scale to log (tricky but more "correct") - turns out this is not feasible 
+
+### Tempered transitioning HMC
+```{r}
+cov1 <- diag(c(1, 1))
+cov2 <- diag(c(2, 2))
+covs <- list(cov1, cov2)
+
+means <- list(c(1, 1), c(10, 10))
+weights <- c(0.5, 0.5)
+
+params <- list("means" = means, "covs" = covs,
+               "num_steps" = 200,
+               "step_size" = 0.3,
+               "alpha" = 1.04,
+               "mass" = diag(c(1, 1)))
+
+# samples <- get_samples(c(2, 2), params, weights, n_samples = 10000)
+samples <- read.csv("./sim_output/far_modes_hmc_1.4.csv")
+samples %>%
+    ggplot(aes(x = x, y = y, alpha = 0.3)) + geom_point() + ggtitle("alpha = 1.4, L = 20, epsilon = 0.3")
+
+ts.plot(samples$x)
+
+samples <- read.csv("./sim_output/far_modes_hmc_1.04.csv")
+samples %>%
+    ggplot(aes(x = x, y = y)) + geom_point() + ggtitle("alpha = 1.04, L = 200, epsilon = 0.3")
+
+ts.plot(samples$x)
+```
+
+Note that the particle moves much more freely between the two modes in the second settings. (Maximum temperature ~ 7.1)
+
+### Target raised to a temperature
+
+First try with T = 2, 4, 8, 16, 32, other parameters are kept the same.
+
+It is very difficult for the particle to escape its current mode without increasing the mass matrix. 
+
+```{r}
+# T <- c(2, 4, 8, 16, 32)
+cov1 <- diag(c(1, 1)) / T
+cov2 <- diag(c(2, 2)) / T
+covs <- list(cov1, cov2)
+
+means <- list(c(1, 1), c(10, 10))
+weights <- c(0.5, 0.5)
+
+params <- list("means" = means, "covs" = covs,
+               "num_steps" = 200,
+               "step_size" = 0.3,
+               "alpha" = 1.0,
+               "mass" = diag(c(1, 1)))
+
+path <- read.csv("./sim_output/path_temp_16.csv")
+path %>% ggplot(aes(x = x, y = y, color = temp)) + geom_path()
+```
+
+### HMC within Gibbs framework
+
+Getting a sample from tempered transitioning HMC under normal settings
+```{r}
+cov1 <- matrix(c(1, 0.95, 0.95, 1), nrow = 2, byrow = TRUE)
+cov2 <- matrix(c(1, -0.95, -0.95, 1), nrow = 2, byrow = TRUE)
+
+covs <- list(cov1, cov2)
+means <- list(c(1, 1), c(1, 1))
+
+params <- list("means" = means, "covs" = covs,
+               "num_steps" = 10,
+               "step_size" = 0.05,
+               "alpha" = 1,
+               "mass" = diag(c(1, 1)))
+class(params) <- "HMC_sim_parameters"
+
+# moved sampling from R to C++ for faster performance
+df <- read.csv("./sim_output/correlated_target_n_HMC.csv")
+df %>%
+    ggplot(aes(x = x, y = y)) + geom_point()
+```
